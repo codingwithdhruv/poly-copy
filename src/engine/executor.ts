@@ -88,32 +88,43 @@ export class Executor {
             return;
         }
 
-        const balance = await this.getWalletBalance();
+        const realBalance = await this.getWalletBalance();
+        const allocPct = config.globalWalletAllocationPct || 1.0;
+        const effectiveBalance = realBalance * allocPct;
+
+        // Log if we are using a subset
+        if (allocPct < 1.0) {
+            console.log(`[EXECUTOR] Wallet Allocation: ${(allocPct * 100).toFixed(0)}% (Effective: $${effectiveBalance.toFixed(2)} / Real: $${realBalance.toFixed(2)})`);
+        } else {
+            console.log(`[EXECUTOR] Wallet Balance: $${realBalance.toFixed(2)}`);
+        }
+
         let tradeSizeUsd = decision.sizeUsd;
 
         // Handle Ratio-based sizing (negative values from Strategy Engine)
         if (tradeSizeUsd < 0) {
             const ratio = -tradeSizeUsd;
-            tradeSizeUsd = balance * ratio;
+            // Apply ratio to the EFFECTIVE capital
+            tradeSizeUsd = effectiveBalance * ratio;
         }
 
         console.log(`[EXECUTOR] Attempting to place order: $${tradeSizeUsd.toFixed(2)} on ${decision.marketData.question}`);
 
-        // 1. Risk Checks
-        if (tradeSizeUsd > balance * config.risk.maxSingleTradeSize) {
-            console.warn(`[RISK] Trade size $${tradeSizeUsd} exceeds max single trade ratio. Capping.`);
-            tradeSizeUsd = balance * config.risk.maxSingleTradeSize;
+        // 1. Risk Checks (All relative to EFFECTIVE Balance)
+        if (tradeSizeUsd > effectiveBalance * config.risk.maxSingleTradeSize) {
+            console.warn(`[RISK] Trade size $${tradeSizeUsd.toFixed(2)} exceeds max single trade ratio. Capping.`);
+            tradeSizeUsd = effectiveBalance * config.risk.maxSingleTradeSize;
         }
 
         // Check Total Exposure
-        if (TOTAL_SESSIONS_EXPOSURE + tradeSizeUsd > balance * config.risk.maxTotalOpenExposure) {
-            console.warn(`[RISK] Total exposure limit reached. Skipping.`);
+        if (TOTAL_SESSIONS_EXPOSURE + tradeSizeUsd > effectiveBalance * config.risk.maxTotalOpenExposure) {
+            console.warn(`[RISK] Total exposure limit reached ($${TOTAL_SESSIONS_EXPOSURE.toFixed(2)} + $${tradeSizeUsd.toFixed(2)} > $${(effectiveBalance * config.risk.maxTotalOpenExposure).toFixed(2)}). Skipping.`);
             return;
         }
 
         // Check Single Market Exposure
         const currentMarketExp = EXPOSURE_STORE[decision.marketData.conditionId] || 0;
-        if (currentMarketExp + tradeSizeUsd > balance * config.risk.maxSingleMarketExposure) {
+        if (currentMarketExp + tradeSizeUsd > effectiveBalance * config.risk.maxSingleMarketExposure) {
             console.warn(`[RISK] Single market exposure limit reached. Skipping.`);
             return;
         }

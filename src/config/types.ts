@@ -27,6 +27,11 @@ export interface RiskControls {
 export interface StrategyConfig {
     traderAddress: string;
     alias: string; // 'Trader1' or 'Trader2'
+
+    // NEW: Global Cap on Wallet Usage (0.0 - 1.0)
+    // e.g. 0.5 means behave as if wallet is 50% size
+    globalWalletAllocationPct?: number;
+
     strategyType: 'DIVERSIFIED_COPY' | 'CERTAINTY_SNIPER'; // Internal names for the two logic flows
 
     conditions: CopyConditions;
