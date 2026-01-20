@@ -117,7 +117,7 @@ export class TradePoller {
             // Optional: Filter if we care about Maker/Taker, but Data API usually implies execution.
             // For now, we copy EVERYTHING.
 
-            console.log(`[POLLER] New Trade Detected! ${target} ${mySide} ${Number(raw.size)} ${raw.outcome} on "${raw.title}"`);
+            console.log(`\x1b[31m[POLLER] New Trade Detected! ${target} ${mySide} ${Number(raw.size)} ${raw.outcome} on "${raw.title}"\x1b[0m`);
 
             const trade: RtdsTrade = {
                 user: target,

@@ -75,7 +75,7 @@ async function main() {
                     trade.price
                 );
             } else {
-                console.log(`[STRATEGY] SKIP: ${decision.reason}`);
+                console.log(`\x1b[33m[STRATEGY] SKIP: ${decision.reason}\x1b[0m`);
             }
         } catch (e) {
             console.error("Error in trade processing flow:", e);

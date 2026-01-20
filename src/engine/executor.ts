@@ -112,20 +112,20 @@ export class Executor {
 
         // 1. Risk Checks (All relative to EFFECTIVE Balance)
         if (tradeSizeUsd > effectiveBalance * config.risk.maxSingleTradeSize) {
-            console.warn(`[RISK] Trade size $${tradeSizeUsd.toFixed(2)} exceeds max single trade ratio. Capping.`);
+            console.warn(`\x1b[33m[RISK] Trade size $${tradeSizeUsd.toFixed(2)} exceeds max single trade ratio. Capping.\x1b[0m`);
             tradeSizeUsd = effectiveBalance * config.risk.maxSingleTradeSize;
         }
 
         // Check Total Exposure
         if (TOTAL_SESSIONS_EXPOSURE + tradeSizeUsd > effectiveBalance * config.risk.maxTotalOpenExposure) {
-            console.warn(`[RISK] Total exposure limit reached ($${TOTAL_SESSIONS_EXPOSURE.toFixed(2)} + $${tradeSizeUsd.toFixed(2)} > $${(effectiveBalance * config.risk.maxTotalOpenExposure).toFixed(2)}). Skipping.`);
+            console.warn(`\x1b[33m[RISK] Total exposure limit reached ($${TOTAL_SESSIONS_EXPOSURE.toFixed(2)} + $${tradeSizeUsd.toFixed(2)} > $${(effectiveBalance * config.risk.maxTotalOpenExposure).toFixed(2)}). Skipping.\x1b[0m`);
             return;
         }
 
         // Check Single Market Exposure
         const currentMarketExp = EXPOSURE_STORE[decision.marketData.conditionId] || 0;
         if (currentMarketExp + tradeSizeUsd > effectiveBalance * config.risk.maxSingleMarketExposure) {
-            console.warn(`[RISK] Single market exposure limit reached. Skipping.`);
+            console.warn(`\x1b[33m[RISK] Single market exposure limit reached. Skipping.\x1b[0m`);
             return;
         }
 
@@ -194,7 +194,7 @@ export class Executor {
 
             if (order) {
                 const resp = await this.client?.postOrder(order);
-                console.log("Order Placed:", resp);
+                console.log("\x1b[32m[SUCCESS] Order Placed:\x1b[0m", resp);
 
                 // Update Exposure
                 TOTAL_SESSIONS_EXPOSURE += tradeSizeUsd;
