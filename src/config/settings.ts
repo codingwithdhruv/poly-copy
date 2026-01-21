@@ -11,7 +11,7 @@ dotenv.config();
 export const USER_CONFIG: StrategyConfig = {
     // 1. Target Trader
     traderAddress: process.env.TRADER_ADDRESS_TARGET || '',
-    alias: 'Inventory_Trader',
+    alias: 'DelayedConviction_Whale',
     globalWalletAllocationPct: 1.0, // Use 100% of available wallet (Set to 0.5 to use only 50%)
 
     // 2. Core Strategy Logic
@@ -19,22 +19,22 @@ export const USER_CONFIG: StrategyConfig = {
     // 'CERTAINTY_SNIPER': Strict single-shot, strict time-to-resolution checks.
     strategyType: 'DIVERSIFIED_COPY',
 
-    allowMultipleExecutions: true, // Set FALSE for strict single-shot mode
+    allowMultipleExecutions: false, // Set FALSE for strict single-shot mode
 
     // 3. Signal Filters (When do we copy?)
     conditions: {
         // Minimum % of THEIR portfolio they must bet to trigger a copy
-        minTraderPortfolioAlloc: 0.005, // 0.10 = 10%
+        minTraderPortfolioAlloc: 0.01, // 0.10 = 10%
 
         // Ignore noise: trade price must be > 3 cents
-        ignorePriceBelow: 0.03,
+        ignorePriceBelow: 0.10,
 
         // Time limits
-        maxExecutionsPerMarket: 15,
-        timeWindowMinutes: 30,
+        maxExecutionsPerMarket: 40,
+        timeWindowMinutes: 60,
 
         // Advanced: Only copy if they are 90%+ one-sided
-        singleSideDominanceThreshold: 0.55,
+        singleSideDominanceThreshold: 0.75,
 
         // Optional: Require min time to resolution (e.g. 60 mins)
         // minTimeToResolutionMinutes: 60 
@@ -46,32 +46,32 @@ export const USER_CONFIG: StrategyConfig = {
         rules: [
             // Rule 1: If they bet 12% - 20%, we bet 1.5% of OUR wallet
             {
-                minTraderAlloc: 0.005,
-                maxTraderAlloc: 0.02,
-                copySizeRatio: 0.015
+                minTraderAlloc: 0.01,
+                maxTraderAlloc: 0.03,
+                copySizeRatio: 0.010
             },
             // Rule 2: If they bet > 20%, we bet 2.5% of OUR wallet
             {
-                minTraderAlloc: 0.02,
+                minTraderAlloc: 0.03,
                 maxTraderAlloc: Infinity,
-                copySizeRatio: 0.02
+                copySizeRatio: 0.15
             }
         ]
     },
 
     // 5. Risk Controls (Hard limits)
     risk: {
-        maxTotalOpenExposure: 0.40, // Max 75% of wallet at risk total
-        maxSingleMarketExposure: 0.10, // Max 22% in one market
-        maxSingleTradeSize: 0.02, // Max 2% per single order
-        maxOpenPositions: 20
+        maxTotalOpenExposure: 0.30, // Max 75% of wallet at risk total
+        maxSingleMarketExposure: 0.15, // Max 22% in one market
+        maxSingleTradeSize: 0.15, // Max 2% per single order
+        maxOpenPositions: 3
     },
 
     // 6. Overrides
     overrides: {
-        disableInventoryMode: false,
-        disableAccumulators: false,
-        disableFlipTrading: false
+        disableInventoryMode: true,
+        disableAccumulators: true,
+        disableFlipTrading: true
     }
 };
 

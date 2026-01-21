@@ -44,11 +44,11 @@ export async function getTraderPortfolioValue(address: string): Promise<number> 
             // This is risky.
 
             // Allow a default fallback if 0?
-            return totalValue > 100 ? totalValue : 1000; // conservative default?
+            return totalValue;
         }
-        return 1000; // Fallback default
+        return 0;
     } catch (e) {
         console.error(`Error fetching portfolio for ${address}:`, e);
-        return 1000; // Fail safe
+        return 0;
     }
 }

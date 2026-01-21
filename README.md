@@ -1,92 +1,102 @@
-# Poly-Copy Trading Bot
+# Poly-Copy: Advanced Copy Trading Bot
 
-A high-frequency copy trading bot for Polymarket, built in TypeScript. 
-Designed for execution on VPS instances, allowing you to follow specific high-conviction traders with customizable risk/sizing logic.
+A high-performance, institutional-grade copy trading bot for Polymarket. Designed to follow complex accumulation strategies of high-conviction whales while filtering out noise, hedging, and low-conviction flow.
 
-## Features
+## 🚀 Key Capabilities
 
--   **High-Fidelity Copying**: Tracks trader moves via WebSocket (RTDS) for minimal latency.
--   **Smart Filters**: 
-    -   Ignores noise (trades < 3 cents or small allocations).
-    -   Tracks target trader's portfolio allocation % to determine conviction.
--   **Configurable Sizing**: Scales your bet size based on the target's conviction (e.g. if they bet 10% of their stack, you bet 2%).
--   **Risk Guardrails**: Hard caps on single-trade size, market exposure, and total wallet exposure.
--   **Single-Config**: All settings are tweakable in one file (`src/config/settings.ts`).
+### 1. Conviction Accumulation Engine
+Unlike basic copy bots that copy every trade 1:1, Poly-Copy implements an **Aggregation Engine**.
+- **Issue**: Smart whales build positions slowly (e.g., 50 small trades over 2 hours). A basic bot would trigger 50 times (over-trading) or miss the conviction (if using single trade limits).
+- **Solution**: This bot tracks the target's **cumulative net exposure** per market in real-time.
+- **Trigger**: It only executes when the trader's *aggregated* exposure crosses your defined threshold (e.g., >10% of their portfolio).
 
-## Installation
+### 2. Smart Signal Filtering
+- **Single-Side Dominance**: Ignores traders who are hedging or market making. Only copies when `dominance > 75%` (e.g., strictly buying YES).
+- **Time Window Enforcement**: Tracks "Time First Seen" per market. If conviction isn't reached within `timeWindowMinutes`, the potential signal is discarded as "low conviction/stale".
+- **Deduplication**: Robust protection against duplicate API events ensuring you never double-count the same trade.
 
-1.  **Clone the repository**:
-    ```bash
-    git clone <repo-url>
-    cd poly-copy
-    ```
+### 3. Execution Control
+- **Single-Shot Latch**: Options to restrict execution to exactly **one** entry per market, preventing "chasing" entries.
+- **Proxy / Gnosis Safe Support**: Native support for executing trades via a Gnosis Safe proxy for enhanced security.
+- **Dynamic Sizing**: Scale your entry size based on the target's conviction tier (e.g., "Tier 1 Conviction" -> 1.5% size, "God Mode Conviction" -> 5% size).
 
-2.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
+---
 
-3.  **Setup Environment**:
-    Create a `.env` file in the root directory:
-    ```ini
-    PRIVATE_KEY=YOUR_POLYGON_PRIVATE_KEY
-    POLYGON_RPC_URL=https://polygon-rpc.com
-    
-    # Target Trader to Copy (Address)
-    TRADER_ADDRESS_TARGET=0x...
-    ```
+## 🛠️ Installation
 
-## Configuration
+```bash
+# 1. Clone
+git clone <repo-url>
+cd poly-copy
 
-All strategy logic is located in `src/config/settings.ts`. You can edit this file directly to tweak behavior.
+# 2. Install
+npm install
+
+# 3. Configure
+cp .env.example .env
+# Edit .env with your keys and target trader address
+```
+
+## ⚙️ Configuration
+
+The core strategy is controlled via `src/config/settings.ts`. This allows granular control over the logic.
 
 ### Critical Settings
--   `traderAddress`: The address you want to copy (loaded from .env by default).
--   `conditions.minTraderPortfolioAlloc`: The minimum % of *their* portfolio they must deploy for you to copy. (Default 0.10 = 10%).
--   `sizing.rules`: Define how much to bet.
-    ```typescript
-    {
-        minTraderAlloc: 0.10, // If they bet 10%...
-        maxTraderAlloc: 0.20,
-        copySizeRatio: 0.015  // You bet 1.5% of YOUR wallet
-    }
-    ```
--   `risk`: Hard limits to prevent blowing up your account.
 
-## Usage
+| Setting | Description | Recommended |
+|:---|:---|:---|
+| `minTraderPortfolioAlloc` | Min % of *their* total equity they must commit to trigger a copy. | `0.05` (5%) |
+| `singleSideDominanceThreshold` | Ratio of Buy/Sell to filter hedgers. | `0.75`+ |
+| `timeWindowMinutes` | Max time allowed for them to build the position. | `60` |
+| `allowMultipleExecutions` | `false` allows only one sniper entry per market. | `false` |
 
-### Development / Local Run
+### Sizing Rules (Example)
+
+```typescript
+sizing: {
+    mode: 'WALLET_SCALED',
+    rules: [
+        // If they bet 1% - 3%, we bet 1% of OUR wallet
+        { minTraderAlloc: 0.01, maxTraderAlloc: 0.03, copySizeRatio: 0.01 },
+        
+        // If they bet > 3%, we bet 15% of OUR wallet (High Conviction)
+        { minTraderAlloc: 0.03, maxTraderAlloc: Infinity, copySizeRatio: 0.15 }
+    ]
+}
+```
+
+## 🏗️ Architecture
+
+- **Monitor (`src/clients/monitor.ts`)**: Listens to the global Polymarket/CLOB WebSocket. Filters for the target address via efficient deduplication.
+- **Strategy Engine (`src/engine/strategy.ts`)**: 
+    - Maintains an in-memory `MARKET_EXPOSURE` ledger.
+    - Aggregates buys/sells.
+    - Runs "Safety Checks" (Time Window, Dominance, Resolution Time).
+    - Periodic garbage collection prevents memory leaks.
+- **Executor (`src/engine/executor.ts`)**: 
+    - Handles wallet management (EOA or Proxy).
+    - Executes Limit Orders (FOK/IOC style).
+    - Enforces hard risk limits (Max Allocation, Max Exposure).
+
+## 🖥️ Running
+
+### Development
 ```bash
 npm run dev
 ```
 
 ### Production (VPS)
-1.  Build the project:
-    ```bash
-    npm run build
-    ```
-2.  Start the bot:
-    ```bash
-    npm start
-    ```
+```bash
+npm run build
+npm start
+```
 
-## How It Works
+## 🛡️ Risk Management
+The bot includes hard-coded safety rails in `settings.ts`:
+- `maxTotalOpenExposure`: Max % of wallet deployed across ALL markets.
+- `maxSingleMarketExposure`: Max % of wallet in ONE market.
+- `maxSingleTradeSize`: Max % of wallet in ONE trade.
 
-1.  **Monitor**: Connects to Polymarket's RTDS WebSocket and listens for trades from the `TRADER_ADDRESS_TARGET`.
-2.  **Evaluating Conviction**:
-    -   Fetches the target's estimated portfolio value.
-    -   Calculates the trade's size relative to their portfolio.
-    -   If strict criteria (allocation %, dominance) are met, proceeds.
-3.  **Execution**:
-    -   Calculates *your* trade size based on `settings.ts` rules.
-    -   Checks your wallet balance (USDC.e on Polygon).
-    -   Places a **Limit Order** via the CLOB API.
+---
 
-## Troubleshooting
-
--   **"Shares too low"**: The calculated trade size was too small for Polymarket's minimums. Increase your wallet balance or sizing ratio.
--   **"Alloc < Min"**: The target trader made a trade, but it was too small relative to their portfolio (considered "noise").
--   **"Error fetching wallet balance"**: Check your RPC URL in `.env`.
-
-## Disclaimer
-Trading involves risk. This software is provided as-is. Use at your own risk.
+*Disclaimer: This software is for educational purposes. Trading cryptocurrency and prediction markets involves significant risk.*

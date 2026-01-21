@@ -5,6 +5,7 @@ import { MarketData } from '../utils/market';
 import { ethers, Wallet } from 'ethers';
 import { GLOBAL_CONFIG } from '../config';
 import { getUsdcBalance } from '../utils/chain';
+import { EXECUTED_MARKETS } from './strategy';
 
 // Basic in-memory store for open positions to track exposure (since we don't scan full positions on every tick)
 // In a real robust bot, this should fetch initially from API.
@@ -199,6 +200,9 @@ export class Executor {
                 // Update Exposure
                 TOTAL_SESSIONS_EXPOSURE += tradeSizeUsd;
                 EXPOSURE_STORE[decision.marketData.conditionId] = currentMarketExp + tradeSizeUsd;
+
+                // Mark as Executed (FIX 3)
+                EXECUTED_MARKETS.add(decision.marketData.conditionId);
             }
 
         } catch (e) {
