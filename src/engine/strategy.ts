@@ -116,30 +116,28 @@ export class StrategyEngine {
         // Calculate Net Exposure for Allocation Check
         const netExposure = Math.abs(market.buyUsd - market.sellUsd);
 
-        if (config.conditions.minTraderPortfolioAlloc > 0) {
-            // FIX 5: Simplified Portfolio Estimation
-            // Uses Math.max(cash, portfolio) to avoid underestimation noise
-            const balance = await getUsdcBalance(config.traderAddress);
-            const portfolioVal = await getTraderPortfolioValue(config.traderAddress);
+        // Safety: Filter tiny exposures
+        if (netExposure < 25) {
+            return { shouldExecute: false, reason: 'Exposure too small' };
+        }
 
-            const totalEquity = Math.max(balance, portfolioVal);
+        // ALWAYS COMPUTE ALLOCATION (Removing the > 0 guard)
+        const balance = await getUsdcBalance(config.traderAddress);
+        const portfolioVal = await getTraderPortfolioValue(config.traderAddress);
+        const totalEquity = Math.max(balance, portfolioVal);
 
-            // Avoid division by zero
-            if (totalEquity <= 1) {
-                traderAllocPct = 0;
-            } else {
-                traderAllocPct = netExposure / totalEquity; // FIX 2: Use netExposure
-            }
+        if (totalEquity > 1) {
+            traderAllocPct = netExposure / totalEquity;
+        }
 
-            console.log(`[STRATEGY] Exposure: $${netExposure.toFixed(2)} | Equity: $${totalEquity.toFixed(2)} | Alloc: ${(traderAllocPct * 100).toFixed(2)}%`);
+        console.log(`[STRATEGY] Exposure: $${netExposure.toFixed(2)} | Equity: $${totalEquity.toFixed(2)} | Alloc: ${(traderAllocPct * 100).toFixed(2)}%`);
 
-            if (traderAllocPct < config.conditions.minTraderPortfolioAlloc) {
-                // We keep tracking but don't execute execution
-                return {
-                    shouldExecute: false,
-                    reason: `Alloc ${(traderAllocPct * 100).toFixed(2)}% < Min ${(config.conditions.minTraderPortfolioAlloc * 100).toFixed(0)}%`
-                };
-            }
+        if (traderAllocPct < config.conditions.minTraderPortfolioAlloc) {
+            // We keep tracking but don't execute execution
+            return {
+                shouldExecute: false,
+                reason: `Alloc ${(traderAllocPct * 100).toFixed(2)}% < Min ${(config.conditions.minTraderPortfolioAlloc * 100).toFixed(0)}%`
+            };
         }
 
         // ----------------------------------------------------------------

@@ -17,24 +17,24 @@ export const USER_CONFIG: StrategyConfig = {
     // 2. Core Strategy Logic
     // 'DIVERSIFIED_COPY': Checks dominance, allows multiple trades.
     // 'CERTAINTY_SNIPER': Strict single-shot, strict time-to-resolution checks.
-    strategyType: 'DIVERSIFIED_COPY',
+    strategyType: 'CERTAINTY_SNIPER',
 
     allowMultipleExecutions: false, // Set FALSE for strict single-shot mode
 
     // 3. Signal Filters (When do we copy?)
     conditions: {
         // Minimum % of THEIR portfolio they must bet to trigger a copy
-        minTraderPortfolioAlloc: 0.01, // 0.10 = 10%
+        minTraderPortfolioAlloc: 0, // 0.10 = 10%
 
         // Ignore noise: trade price must be > 3 cents
         ignorePriceBelow: 0.10,
 
         // Time limits
-        maxExecutionsPerMarket: 40,
-        timeWindowMinutes: 60,
+        maxExecutionsPerMarket: 5,
+        timeWindowMinutes: 615,
 
         // Advanced: Only copy if they are 90%+ one-sided
-        singleSideDominanceThreshold: 0.75,
+        singleSideDominanceThreshold: 0.85,
 
         // Optional: Require min time to resolution (e.g. 60 mins)
         // minTimeToResolutionMinutes: 60 
@@ -42,29 +42,35 @@ export const USER_CONFIG: StrategyConfig = {
 
     // 4. Position Sizing (How much do we bet?)
     sizing: {
-        mode: 'WALLET_SCALED', // 'FIXED_TIERS' or 'WALLET_SCALED'
+        mode: 'FIXED_TIERS', // 'FIXED_TIERS' or 'WALLET_SCALED'
         rules: [
-            // Rule 1: If they bet 12% - 20%, we bet 1.5% of OUR wallet
+            // Rule 0: Low Alloc Tier (0% - 1%)
+            {
+                minTraderAlloc: 0,
+                maxTraderAlloc: 0.01,
+                copySizeRatio: 0.01
+            },
+            // Rule 1: If they bet 1% - 5%, we bet 1.5% of OUR wallet
             {
                 minTraderAlloc: 0.01,
-                maxTraderAlloc: 0.03,
-                copySizeRatio: 0.010
+                maxTraderAlloc: 0.05,
+                copySizeRatio: 0.015
             },
-            // Rule 2: If they bet > 20%, we bet 2.5% of OUR wallet
+            // Rule 2: If they bet > 5%, we bet 2.5% of OUR wallet
             {
-                minTraderAlloc: 0.03,
+                minTraderAlloc: 0.05,
                 maxTraderAlloc: Infinity,
-                copySizeRatio: 0.15
+                copySizeRatio: 0.025
             }
         ]
     },
 
     // 5. Risk Controls (Hard limits)
     risk: {
-        maxTotalOpenExposure: 0.30, // Max 75% of wallet at risk total
-        maxSingleMarketExposure: 0.15, // Max 22% in one market
-        maxSingleTradeSize: 0.15, // Max 2% per single order
-        maxOpenPositions: 3
+        maxTotalOpenExposure: 0.60, // Max 75% of wallet at risk total
+        maxSingleMarketExposure: 0.20, // Max 22% in one market
+        maxSingleTradeSize: 0.025, // Max 2% per single order
+        maxOpenPositions: 6
     },
 
     // 6. Overrides

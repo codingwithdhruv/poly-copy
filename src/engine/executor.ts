@@ -11,6 +11,7 @@ import { EXECUTED_MARKETS } from './strategy';
 // In a real robust bot, this should fetch initially from API.
 const EXPOSURE_STORE: Record<string, number> = {}; // MarketID -> USD Exposure
 let TOTAL_SESSIONS_EXPOSURE = 0;
+const MIN_EXECUTABLE_USD = 5; // Polymarket practical minimum
 
 export class Executor {
     public client!: ClobClient; // Public for Poller access
@@ -102,11 +103,27 @@ export class Executor {
 
         let tradeSizeUsd = decision.sizeUsd;
 
-        // Handle Ratio-based sizing (negative values from Strategy Engine)
+        // Convert ratio-based sizing (negative values from Strategy Engine)
         if (tradeSizeUsd < 0) {
-            const ratio = -tradeSizeUsd;
-            // Apply ratio to the EFFECTIVE capital
-            tradeSizeUsd = effectiveBalance * ratio;
+            const baseRatio = -tradeSizeUsd;
+
+            // Dynamic scaling to meet minimum executable order
+            let dynamicRatio = baseRatio;
+            const minRatioNeeded = MIN_EXECUTABLE_USD / effectiveBalance;
+
+            if (minRatioNeeded > baseRatio) {
+                dynamicRatio = minRatioNeeded;
+                console.warn(
+                    `[SIZING] Wallet small ($${effectiveBalance.toFixed(2)}). ` +
+                    `Escalating trade ratio from ${(baseRatio * 100).toFixed(2)}% ` +
+                    `→ ${(dynamicRatio * 100).toFixed(2)}% to meet $${MIN_EXECUTABLE_USD} minimum`
+                );
+            }
+
+            // Hard clamp: never exceed maxSingleTradeSize
+            dynamicRatio = Math.min(dynamicRatio, config.risk.maxSingleTradeSize);
+
+            tradeSizeUsd = effectiveBalance * dynamicRatio;
         }
 
         console.log(`[EXECUTOR] Attempting to place order: $${tradeSizeUsd.toFixed(2)} on ${decision.marketData.question}`);
@@ -115,6 +132,14 @@ export class Executor {
         if (tradeSizeUsd > effectiveBalance * config.risk.maxSingleTradeSize) {
             console.warn(`\x1b[33m[RISK] Trade size $${tradeSizeUsd.toFixed(2)} exceeds max single trade ratio. Capping.\x1b[0m`);
             tradeSizeUsd = effectiveBalance * config.risk.maxSingleTradeSize;
+        }
+
+        // Final safety check: ensure trade is large enough to be executable
+        if (tradeSizeUsd < MIN_EXECUTABLE_USD) {
+            console.warn(
+                `[EXECUTOR] Trade $${tradeSizeUsd.toFixed(2)} still below minimum. Skipping.`
+            );
+            return;
         }
 
         // Check Total Exposure
@@ -144,8 +169,8 @@ export class Executor {
             const shares = tradeSizeUsd / price;
 
             // Rounding logic for CLOB (shares must be significant)
-            if (shares < 1) { // Polylmarket min size checks might apply
-                console.warn("Shares too low: " + shares);
+            if (shares < 0.01) {
+                console.warn(`[EXECUTOR] Shares too low (${shares}). Skipping.`);
                 return;
             }
 
@@ -172,9 +197,14 @@ export class Executor {
             const precision = tickSize === "0.1" ? 1 : tickSize === "0.01" ? 2 : tickSize === "0.001" ? 3 : 4;
             // Robust rounding:
             const multiplier = 1 / Number(tickSize);
-            const roundedPrice = Math.round(price * multiplier) / multiplier;
+            const roundedPrice =
+                side === 'BUY'
+                    ? Math.floor(price * multiplier) / multiplier
+                    : Math.ceil(price * multiplier) / multiplier;
 
-            console.log(`[ORDER] Placing BUY for ${shares.toFixed(2)} shares at price ${roundedPrice} (Tick: ${tickSize}, NegRisk: ${negRisk})`);
+            console.log(
+                `[ORDER] Placing ${side} for ${shares.toFixed(4)} shares @ ${roundedPrice} (Tick: ${tickSize}, NegRisk: ${negRisk})`
+            );
 
             // Create Order
             // Side is usually BUY for copy compliance (we copy their side).
