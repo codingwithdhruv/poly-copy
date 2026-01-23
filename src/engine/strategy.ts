@@ -190,7 +190,12 @@ export class StrategyEngine {
             traderAllocPct >= r.minTraderAlloc && traderAllocPct < r.maxTraderAlloc
         );
 
-        if (!rule) return 0;
+        if (!rule) {
+            console.warn(`[SIZING] No tier matched for alloc ${(traderAllocPct * 100).toFixed(4)}%, using fallback maxSingleTradeSize`);
+            // Fallback to max risk size (or maybe the smallest rule? User said maxSingleTradeSize)
+            // Using negative value to indicate Ratio Mode to Executor
+            return -config.risk.maxSingleTradeSize;
+        }
 
         // If defined copySizeRatio (Fixed Tiers)
         if (rule.copySizeRatio) {
